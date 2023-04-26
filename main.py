@@ -1,56 +1,52 @@
-# -*- coding: utf-8 -*-
-from telebot import TeleBot, types
+from telebot import TeleBot
+from xml.dom import minidom
+from requests import get
+import sqlite3
 
-from config import *
-from db_interact import *
-
-
-bot = TeleBot(token=token)
+bot = TeleBot(token="6173750891:AAHh6JY7OWCKZWoOhsR6Xtod0RqDCLkqqVA")
 
 
-@bot.message_handler(commands=['start', 'profile', 'testcmd', 'menu', 'help'])
-def base_commands(msg):
-    user, text = msg.from_user.id, msg.text
-    if text == '/start':
-        if not check_user(user):
-            new_user(user)
-            bot.send_message(user, 'Добро пожаловать!\nПожалуйста, введите ваш ФИО')
-            bot.register_next_step_handler(msg, process_one)
-        else:
-            bot.send_message(user, 'Вы уже зарегистрированы!')
-    if text in ['/menu', '/help']:
-        if check_user(user):
-            bot.send_message(user, )
+def create_session():
+    db = sqlite3.connect('db.db')
+    sql = db.cursor()
+    return sql
 
 
-def process_one(msg):
-    user, text = msg.from_user.id, msg.text
-    if len(text.split()) == 3:
-        insert_name(user, text)
-        bot.send_message(user, 'Укажите вашу группу')
-        bot.register_next_step_handler(msg, process_two)
+def answers_pool(tag):
+    with open(tag + '.txt') as answer:
+        return answer.read()
+
+
+def read_xml():
+    resp = get('https://yakit.ru/rasp/rasp.xml')
+    print(resp.json())
+    # mydoc = minidom.parse('')
+
+
+def parse(msg):
+    return msg.from_user.id, msg.text
+
+
+@bot.message_handler(commands=['start', 'help'])
+def start_message(msg):
+    user, text = parse(msg)
+    sql = create_session()
+    val = sql.execute(f'SELECT * FROM users WHERE id = {user}').fetchone()
+    if len(val):
+        bot.send_message(user, answers_pool('start_old'))
     else:
-        bot.reply_to(msg, 'Пожалуйста, укажитие фамилию, имя и отчество через пробелы')
-        bot.register_next_step_handler(msg, process_one)
+        bot.send_message(user, answers_pool('start_new'))
 
 
-def process_two(msg):
-    user, text = msg.from_user.id, msg.text
-    bot.send_message(user, "Регистрация завершена.")
+@bot.message_handler(commands=['schedule'])
+def get_schedule(msg):
+    user, text = parse(msg)
+    read_xml()
 
 
-@bot.message_handler(func=lambda msg: True)
-def any_text(msg):
-    user = msg.from_user.id
-    text = msg.text
-    if text in ['.delprof', '.nullprof', '.botoff']:
-        if user in admins:
-            if text == '.delprof':
-                delete_self(user)
-                bot.reply_to(msg, 'DEBUG: Your profile was deleted successfully.')
-            if text == '.botoff':
-                bot.reply_to(msg, 'DEBUG: Bot is OFF.')
-                bot.stop_bot()
+@bot.message_handler(commands=['note'])
+def create_note(msg):
+    user, text = parse(msg)
 
 
 bot.infinity_polling()
